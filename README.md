@@ -2,8 +2,8 @@
 
 This development slice lists devices, captures numeric audio diagnostics, and
 optionally monitors original microphone audio through a selected output.
-**No AI conversion or virtual microphone is implemented yet. This harness does not
-protect voice identity.**
+**No AI conversion or installed virtual microphone is available yet. This harness
+does not protect voice identity.**
 
 The Go CLI controls a native C++ audio module through a versioned C ABI. The audio
 and device-notification callbacks remain entirely in native code. Capture feeds a
@@ -126,3 +126,18 @@ missing frames, stale discarded frames and discontinuities. Startup silence and
 occasional missing monitor data count as missing frames; these are application
 queue counters, not physical-device xrun measurements. Overflow latches a fault
 and mutes the session; it never falls back to direct microphone output.
+
+## macOS virtual microphone prototype (M2)
+
+A separate silent AudioServerPlugIn is now implemented and builds as
+`build/macos/VoxMaskSilent.driver`. It is **not installed**, has no audio producer
+connection and cannot transform speech. Its isolated interface/silence tests pass.
+
+```sh
+bash tools/build-macos-hal.sh
+bash tools/test-macos-hal.sh address,undefined
+bash tools/test-macos-hal.sh thread
+```
+
+See [M2 status and installation prerequisites](docs/M2-macos-virtual-microphone.md).
+The driver is kept separate from the raw-monitor harness and has no physical input.

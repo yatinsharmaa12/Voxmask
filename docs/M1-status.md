@@ -20,8 +20,8 @@
 This remains a development raw-audio harness, not voice conversion. The native
 module runs in the CLI process, so native crashes can still terminate the process.
 The native ring/worker pipeline is connected to live audio. No production sidecar,
-AI inference, drift controller, driver or
-virtual microphone exists yet. Physical speaker output cannot be guaranteed silent
+AI inference or drift controller exists yet. A separate silent macOS driver
+prototype is built but not installed or connected to the worker. Physical speaker output cannot be guaranteed silent
 by an independent endpoint after the process exits.
 
 Counters do not measure end-to-end latency or hardware underruns. Native backend
@@ -46,3 +46,5 @@ see [the current verification report](verification-native-M1.md) rather than tre
 Current buffer evidence is recorded in [the buffer contract](native-buffer-contract.md).
 
 Worker integration and its validation are described in [the worker contract](native-worker-contract.md).
+
+M2 has begun: [silent macOS endpoint prototype](M2-macos-virtual-microphone.md).
