@@ -1,0 +1,6 @@
+/bin/
+/build/
+*.wav
+*.pcm
+*.raw
+.DS_Store
