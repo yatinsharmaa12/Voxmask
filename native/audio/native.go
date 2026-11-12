@@ -31,13 +31,19 @@ type Format struct {
 	BackendPlaybackPeriod uint32 `json:"backend_playback_period_frames"`
 }
 type Metrics struct {
-	Callbacks         uint64  `json:"callbacks"`
-	Frames            uint64  `json:"frames"`
-	InvalidBlocks     uint64  `json:"invalid_blocks"`
-	MaxCallbackFrames uint32  `json:"max_callback_frames"`
-	MaxCallbackWorkNS uint64  `json:"max_callback_work_ns"`
-	InputRMSDB        float64 `json:"input_rms_db"`
-	DeviceFault       bool    `json:"device_fault"`
+	Callbacks            uint64  `json:"callbacks"`
+	Frames               uint64  `json:"frames"`
+	InvalidBlocks        uint64  `json:"invalid_blocks"`
+	MaxCallbackFrames    uint32  `json:"max_callback_frames"`
+	MaxCallbackWorkNS    uint64  `json:"max_callback_work_ns"`
+	InputRMSDB           float64 `json:"input_rms_db"`
+	DeviceFault          bool    `json:"device_fault"`
+	ProcessedFrames      uint64  `json:"processed_frames"`
+	InputOverflowBlocks  uint64  `json:"input_overflow_blocks"`
+	OutputOverflowBlocks uint64  `json:"output_overflow_blocks"`
+	OutputMissingFrames  uint64  `json:"output_missing_frames"`
+	StaleFrames          uint64  `json:"stale_frames"`
+	Discontinuities      uint64  `json:"discontinuities"`
 }
 
 func result(r C.int32_t) error {
@@ -107,5 +113,5 @@ func (h *Host) Snapshot() (Metrics, error) {
 	if err := result(C.vm_audio_snapshot(h.ptr, &m)); err != nil {
 		return Metrics{}, err
 	}
-	return Metrics{uint64(m.callbacks), uint64(m.frames), uint64(m.invalid_blocks), uint32(m.max_callback_frames), uint64(m.max_callback_work_ns), float64(m.input_rms_db), m.fault != 0}, nil
+	return Metrics{uint64(m.callbacks), uint64(m.frames), uint64(m.invalid_blocks), uint32(m.max_callback_frames), uint64(m.max_callback_work_ns), float64(m.input_rms_db), m.fault != 0, uint64(m.processed_frames), uint64(m.input_overflow_blocks), uint64(m.output_overflow_blocks), uint64(m.output_missing_frames), uint64(m.stale_frames), uint64(m.discontinuities)}, nil
 }

@@ -16,6 +16,7 @@ struct ReadResult {
     uint32_t frames = 0;
     uint32_t discarded = 0;
     uint64_t first_capture_ns = 0;
+    uint64_t oldest_capture_ns = 0;
     uint64_t first_source_frame = 0;
     uint64_t max_age_ns = 0;
     bool discontinuity = false;
@@ -45,10 +46,11 @@ public:
 
     // All-or-nothing write. Full queue drops the incoming block, never oldest data.
     bool push(const float *input, uint32_t count, uint64_t first_ns,
-              uint64_t source_frame, uint64_t epoch, uint32_t rate) noexcept {
+              uint64_t source_frame, uint64_t epoch, uint32_t rate,
+              bool advance_timestamp = true) noexcept {
         if (!input || !count || count>Capacity || !epoch || !rate || rate>192000 ||
             source_frame>UINT64_MAX-count ||
-            first_ns>UINT64_MAX-(uint64_t(count-1)*1000000000/rate)) {
+            first_ns>UINT64_MAX-(advance_timestamp ? uint64_t(count-1)*1000000000/rate : 0)) {
             invalid.fetch_add(1,std::memory_order_relaxed);
             return false;
         }
@@ -66,7 +68,7 @@ public:
         }
         for(uint32_t i=0;i<count;++i) {
             auto &f=data[(w+i)&(Capacity-1)];
-            f={input[i],first_ns+uint64_t(i)*1000000000/rate,source_frame+i,epoch};
+            f={input[i],first_ns+(advance_timestamp ? uint64_t(i)*1000000000/rate : 0),source_frame+i,epoch};
         }
         write_pos.store(w+count,std::memory_order_release);
         pushed.fetch_add(count,std::memory_order_relaxed);
@@ -98,8 +100,10 @@ public:
                     result.discontinuity=true;
                 if(!result.frames) {
                     result.first_capture_ns=f.capture_ns;
+                    result.oldest_capture_ns=f.capture_ns;
                     result.first_source_frame=f.source_frame;
                 }
+                result.oldest_capture_ns=std::min(result.oldest_capture_ns,f.capture_ns);
                 result.max_age_ns=std::max(result.max_age_ns,now_ns-f.capture_ns);
                 output[result.frames++]=f.sample;
                 previous_frame=f.source_frame;previous_epoch=f.epoch;have_previous=true;
@@ -116,6 +120,11 @@ public:
             result.discontinuity=true;
         }
         return result;
+    }
+    // Only the consumer may call this; it is a conservative available count.
+    uint32_t available() const noexcept {
+        const auto r=read_pos.load(std::memory_order_relaxed);
+        return static_cast<uint32_t>(write_pos.load(std::memory_order_acquire)-r);
     }
     RingMetrics metrics() const noexcept {
         return {pushed.load(),read_count.load(),overflow.load(),invalid.load(),

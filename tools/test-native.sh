@@ -14,3 +14,8 @@ mkdir -p "$repo_dir/build/native-tests"
   "$repo_dir/native/audio/buffer_check.cpp" \
   -o "$repo_dir/build/native-tests/frame-ring-$sanitizers"
 "$repo_dir/build/native-tests/frame-ring-$sanitizers"
+
+"${CXX:-clang++}" -std=c++17 -O1 -g -fno-omit-frame-pointer -pthread \
+  "-fsanitize=$sanitizers" "$repo_dir/native/tests/worker_pipeline_test.cpp" \
+  -o "$repo_dir/build/native-tests/worker-pipeline-$sanitizers"
+"$repo_dir/build/native-tests/worker-pipeline-$sanitizers"

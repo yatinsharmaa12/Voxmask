@@ -12,13 +12,15 @@
 - Fixed-capacity native frame ring with source timestamps, session epochs, overflow
   rejection, stale/future/old-session rejection, zero fill and continuity flags.
 - Offline `buffer-check` CLI diagnostic; no hardware access required.
+- Native queues connected to the live probe/monitor path through a background
+  diagnostic worker, with startup/underrun silence and overload fault latching.
 
 ## Boundaries
 
 This remains a development raw-audio harness, not voice conversion. The native
 module runs in the CLI process, so native crashes can still terminate the process.
-The ring component exists but is not wired into live audio. No production sidecar,
-ring-based worker pipeline, drift controller, driver or
+The native ring/worker pipeline is connected to live audio. No production sidecar,
+AI inference, drift controller, driver or
 virtual microphone exists yet. Physical speaker output cannot be guaranteed silent
 by an independent endpoint after the process exits.
 
@@ -28,12 +30,13 @@ The Go race detector cannot validate C++ concurrency; native sanitizers suppleme
 
 ## Next acceptance work
 
-1. Interactive capture/permission test and headphone-only monitor test.
+1. Short built-in microphone capture passed (10 seconds at 48 kHz); complete
+   headphone-only monitor and permission-denial/revocation tests.
 2. Thirty-minute built-in/USB runs across supported sample rates.
 3. Native callback timing traces and independent latency fixture.
 4. Hot-unplug, permissions, suspend/resume and real notification coverage.
-5. Connect the tested native ring to a worker pipeline; implement clock drift
-   correction and worker reset policy before AI integration.
+5. Implement hardware clock mapping/drift correction and model-specific re-priming
+   before AI integration. The current worker has no stateful model to reset.
 6. macOS virtual endpoint prototype with its own silent producer-failure behavior.
 
 Historical initial slice: Go callback tests and fuzz run passed, and real device
@@ -41,3 +44,5 @@ listing succeeded on macOS arm64. That callback implementation has now been repl
 see [the current verification report](verification-native-M1.md) rather than treating old tests as native evidence.
 
 Current buffer evidence is recorded in [the buffer contract](native-buffer-contract.md).
+
+Worker integration and its validation are described in [the worker contract](native-worker-contract.md).

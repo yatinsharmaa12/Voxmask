@@ -77,7 +77,7 @@ func Run(ctx context.Context, o Options, w io.Writer) error {
 		RequestedPeriod uint32 `json:"requested_period_ms"`
 		RawMonitor      bool   `json:"raw_monitor"`
 		nativeaudio.Format
-	}{"configured", "native-cpp", o.Rate, o.PeriodMS, o.Monitor, format}); err != nil {
+	}{"configured", "native-cpp-worker", o.Rate, o.PeriodMS, o.Monitor, format}); err != nil {
 		return err
 	}
 	if err := h.Start(); err != nil {
@@ -107,7 +107,7 @@ func Run(ctx context.Context, o Options, w io.Writer) error {
 				return err
 			}
 			if m.DeviceFault {
-				return errors.New("device interrupted or rerouted; no fallback attempted")
+				return errors.New("audio pipeline fault (device interruption, invalid data or queue overflow); no fallback attempted")
 			}
 			if m.Callbacks == 0 {
 				return errors.New("no capture callbacks; check device and microphone permission")
@@ -125,7 +125,7 @@ func Run(ctx context.Context, o Options, w io.Writer) error {
 				return err
 			}
 			if m.DeviceFault {
-				return errors.New("device interrupted or rerouted; no fallback attempted")
+				return errors.New("audio pipeline fault (device interruption, invalid data or queue overflow); no fallback attempted")
 			}
 			if m.Callbacks == previous {
 				stalled++

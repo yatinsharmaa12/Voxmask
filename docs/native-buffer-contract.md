@@ -1,7 +1,8 @@
 # Native frame-ring contract and verification
 
-Implemented and checked on 13 November 2026. This is a tested transport component;
-it has not been connected to the live capture/monitor callback or an AI worker.
+Implemented and checked on 13 November 2026. The transport is now connected to the
+live capture/monitor path via the diagnostic worker documented in
+[native-worker-contract.md](native-worker-contract.md). No AI worker exists yet.
 
 ## Ownership and bounds
 
@@ -19,7 +20,8 @@ counter. It never moves the consumer cursor to overwrite older frames.
 
 Each frame carries a mono sample, capture timestamp, source frame index and session
 epoch. Timestamps must use the reader's monotonic clock domain. The producer derives
-per-frame timestamps from a block's first sample and rate; it does not infer the
+per-frame timestamps from a block's first sample and rate; an optional constant
+timestamp mode conservatively marks processed chunks with their oldest input time; it does not infer the
 physical capture time. Integrating the hardware timestamp mapping remains work.
 
 ## Read behavior
@@ -78,6 +80,6 @@ test and these counters are not measured hardware xruns or latency benchmarks.
 - Go tests with the race detector passed, including the CGO diagnostic contract.
 - CLI build and static analysis passed.
 
-Next: native worker integration with explicit reset/priming behavior, followed by
-live-device qualification and the macOS virtual endpoint. No virtual microphone,
+Next: live-device qualification, hardware clock mapping/drift handling and the
+macOS virtual endpoint. No virtual microphone,
 model inference or production crash-isolation boundary is implemented here.

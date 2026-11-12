@@ -5,7 +5,7 @@
 #define MA_NO_ENCODING
 #define MINIAUDIO_IMPLEMENTATION
 #include "../third_party/miniaudio/miniaudio.h"
-#include "processor.hpp"
+#include "worker_pipeline.hpp"
 #include <new>
 #include <cstring>
 #include <memory>
@@ -14,7 +14,7 @@ constexpr int32_t vm_bad_state=-10000, vm_bad_abi=-10001;
 struct vm_audio {
  ma_context context{};
  ma_device device{};
- voxmask::Processor processor;
+ voxmask::AudioWorker worker;
  bool context_ready=false, device_ready=false, started=false;
 };
 static_assert(sizeof(ma_device_id)*2+1 <= sizeof(vm_device_info::id),"device ID capacity");
@@ -32,14 +32,14 @@ static bool find_id(ma_device_info *items,ma_uint32 n,const char *wanted,ma_devi
 }
 static void data_callback(ma_device *d,void *out,const void *in,ma_uint32 frames) {
  auto *host=static_cast<vm_audio *>(d->pUserData);
- host->processor.process(static_cast<float *>(out),out?frames:0,
-     static_cast<const float *>(in),in?frames:0,frames);
+ host->worker.core.callback(static_cast<float *>(out),static_cast<const float *>(in),
+     frames,voxmask::monotonic_ns());
 }
 static void notification(const ma_device_notification *n) {
  auto *host=static_cast<vm_audio *>(n->pDevice->pUserData);
  if(n->type==ma_device_notification_type_stopped || n->type==ma_device_notification_type_rerouted ||
     n->type==ma_device_notification_type_interruption_began)
-  host->processor.fault.store(1,std::memory_order_release);
+  host->worker.core.silence();
 }
 extern "C" int32_t vm_audio_create(uint32_t abi,vm_audio **out) {
  if(!out)return MA_INVALID_ARGS;*out=nullptr;
@@ -91,9 +91,10 @@ extern "C" int32_t vm_audio_open(vm_audio *h,const vm_audio_options *o,vm_audio_
  cfg.capture.pDeviceID=&input;cfg.capture.format=ma_format_f32;cfg.capture.channels=1;
  if(o->monitor){cfg.playback.pDeviceID=&output;cfg.playback.format=ma_format_f32;cfg.playback.channels=1;}
  cfg.dataCallback=data_callback;cfg.notificationCallback=notification;cfg.pUserData=h;
- h->processor.monitor=o->monitor!=0;
+ 
  result=ma_device_init(&h->context,&cfg,&h->device);if(result!=MA_SUCCESS)return result;
  h->device_ready=true;
+ if(!h->worker.core.configure(h->device.sampleRate,o->monitor!=0))return vm_bad_state;
  *out={h->device.sampleRate,h->device.capture.channels,h->device.capture.internalSampleRate,
        h->device.capture.internalPeriodSizeInFrames,h->device.playback.internalSampleRate,
        h->device.playback.internalPeriodSizeInFrames};
@@ -102,17 +103,21 @@ extern "C" int32_t vm_audio_open(vm_audio *h,const vm_audio_options *o,vm_audio_
 extern "C" int32_t vm_audio_start(vm_audio *h) {
  if(!h||!h->device_ready||h->started)return vm_bad_state;
  // Sessions are single-use: no reuse of metrics/fault state after stop.
- if(h->processor.fault.load(std::memory_order_acquire))return vm_bad_state;
- auto r=ma_device_start(&h->device);if(r==MA_SUCCESS)h->started=true;return r;
+ if(h->worker.core.failed() || !h->worker.start())return vm_bad_state;
+ auto r=ma_device_start(&h->device);
+ if(r==MA_SUCCESS)h->started=true;else h->worker.stop();
+ return r;
 }
 extern "C" int32_t vm_audio_stop(vm_audio *h) {
  if(!h)return MA_INVALID_ARGS;
- h->processor.fault.store(1,std::memory_order_release);
- if(!h->started)return MA_SUCCESS;
- auto r=ma_device_stop(&h->device);if(r==MA_SUCCESS)h->started=false;return r;
+ h->worker.core.silence();
+ auto r=h->started?ma_device_stop(&h->device):MA_SUCCESS;
+ h->worker.stop();
+ if(r==MA_SUCCESS)h->started=false;
+ return r;
 }
 extern "C" int32_t vm_audio_snapshot(vm_audio *h,vm_audio_metrics *out) {
- if(!h||!out)return MA_INVALID_ARGS;*out=h->processor.snapshot();return MA_SUCCESS;
+ if(!h||!out)return MA_INVALID_ARGS;*out=h->worker.core.snapshot();return MA_SUCCESS;
 }
 extern "C" void vm_audio_destroy(vm_audio *h) {
  if(!h)return;

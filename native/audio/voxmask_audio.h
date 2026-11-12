@@ -4,7 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define VM_AUDIO_ABI 1
+#define VM_AUDIO_ABI 2
 #define VM_AUDIO_MAX_FRAMES 4096
 #define VM_AUDIO_MAX_DEVICES 512
 // This is a development monitor ABI. No conversion or endpoint is implemented.
@@ -24,6 +24,8 @@ typedef struct {
  uint64_t callbacks, frames, invalid_blocks, max_callback_work_ns;
  uint32_t max_callback_frames, fault;
  double input_rms_db;
+ uint64_t processed_frames, input_overflow_blocks, output_overflow_blocks;
+ uint64_t output_missing_frames, stale_frames, discontinuities;
 } vm_audio_metrics;
 // Control calls are serialized by the caller. Snapshot may overlap native callbacks.
 // Strings are borrowed only during calls. Destroy waits for callback termination.

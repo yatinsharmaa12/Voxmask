@@ -6,7 +6,9 @@ optionally monitors original microphone audio through a selected output.
 protect voice identity.**
 
 The Go CLI controls a native C++ audio module through a versioned C ABI. The audio
-and device-notification callbacks remain entirely in native code. No PCM or audio
+and device-notification callbacks remain entirely in native code. Capture feeds a
+bounded native queue; a background C++ worker processes 10 ms chunks; the monitor
+callback reads the separate output queue or emits silence. No PCM or audio
 callback enters Go. The native module is currently in-process; the production
 sidecar and virtual endpoint are later milestones.
 
@@ -69,7 +71,7 @@ names/IDs, so review it before sharing. The session is single-use after stop.
 
 ## Metrics
 
-- `callback_engine`: `native-cpp` confirms the selected implementation.
+- `callback_engine`: `native-cpp-worker` confirms the selected implementation.
 - `client_rate`: miniaudio client stream rate; backend conversion may occur.
 - `backend_capture_rate` / `backend_capture_period_frames`: miniaudio's initialized
   backend fields. These are not independent physical-device or latency measurements.
@@ -115,6 +117,12 @@ maximum source-audio age. Its deliberate overload should report one rejected
 block, 8,160 expired frames and 480 zero-filled missing frames. Those are expected
 fault-injection outcomes, not defects or physical-device underrun measurements.
 
-The queue component is tested but is **not yet connected to live capture or an
-inference worker**. The existing probe and raw monitor still use the direct native
-callback path. See [the buffer contract](docs/native-buffer-contract.md).
+The queue is now connected to live capture and a diagnostic worker. This worker
+only computes levels and optional raw-monitor gain/clamping; it does not perform
+AI inference. See [the worker contract](docs/native-worker-contract.md).
+
+Worker metrics include `processed_frames`, input/output overflow blocks, monitor
+missing frames, stale discarded frames and discontinuities. Startup silence and
+occasional missing monitor data count as missing frames; these are application
+queue counters, not physical-device xrun measurements. Overflow latches a fault
+and mutes the session; it never falls back to direct microphone output.
