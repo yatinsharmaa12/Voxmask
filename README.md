@@ -141,3 +141,9 @@ bash tools/test-macos-hal.sh thread
 
 See [M2 status and installation prerequisites](docs/M2-macos-virtual-microphone.md).
 The driver is kept separate from the raw-monitor harness and has no physical input.
+
+The silent prototype is now installed on the development Mac and Core Audio has
+enumerated it successfully. A three-second system read test observed 281 callbacks,
+143,872 zero-valued frames and no invalid buffers. The endpoint still produces only
+silence; the next M2 task is authenticated producer transport and multi-client
+validation.

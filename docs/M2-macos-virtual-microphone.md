@@ -1,7 +1,8 @@
 # M2 — macOS silent virtual microphone prototype
 
 Status: built and validated in an isolated mock host on 13 November 2026.
-**Not installed in macOS. Not yet validated as an OS-enumerated microphone.**
+Installed and validated as an OS-enumerated silent input on the development Mac.
+The device remains a prototype and has no converted-audio producer.
 
 ## What exists
 
@@ -81,17 +82,21 @@ seed stays fixed because this implementation never resets the clock while loaded
 
 These checks do not exercise Core Audio's actual plug-in loader, sandbox, device
 registration, calling-app compatibility, client permissions or OS restart behavior.
-No files were installed under `/Library/Audio/Plug-Ins/HAL`, and no system audio
-service was restarted. Native service crash behavior and real OS multi-client
-capture remain unverified.
+The bundle is installed under `/Library/Audio/Plug-Ins/HAL` on the development
+machine, and Core Audio was restarted once to load it. Native service crash
+behavior and real OS multi-client capture remain unverified.
 
 ## Remaining M2 work
 
-1. Prepare and review a local test installation/removal procedure. Installation
+1. ~~Prepare and review a local test installation/removal procedure.~~ Completed:
+   the authenticated helper installed the bundle, and Core Audio was restarted
+   explicitly to reload it. Installation
    writes to `/Library/Audio/Plug-Ins/HAL` and requires administrator privileges.
    Schedule any required audio-service restart/reboot outside active audio use.
 2. Verify actual OS enumeration, capture silence, format negotiation, simultaneous
    readers and removal on a test machine; retain diagnostics without recordings.
+   Enumeration, format and single-reader silence are complete; multi-reader and
+   removal tests remain.
 3. Design an authenticated producer transport that satisfies the audio host's
    sandbox/identity requirements. The SDK documents explicit Mach-service allowlists
    for plug-in IPC; an arbitrary user-process socket is not assumed to work.
@@ -105,6 +110,26 @@ must publish only validated converted audio.
 
 Headphone playback is still pending: the latest real-device enumeration showed
 only the built-in microphone and speakers. No speaker playback test was run.
+
+## System integration result — 13 November 2026
+
+The bundle was installed at `/Library/Audio/Plug-Ins/HAL/VoxMaskSilent.driver`
+through the native macOS administrator-authentication flow. Core Audio was then
+restarted after explicit user approval. The exact UID became visible to the system
+and reported 48,000 Hz, one channel, with capture initially stopped.
+
+A three-second Core Audio read test passed:
+
+| Metric | Result |
+|---|---:|
+| Callbacks | 281 |
+| Frames read | 143,872 |
+| Nonzero samples | 0 |
+| Invalid buffers | 0 |
+
+The test opened only the VoxMask prototype UID and stored no PCM. This validates
+the installed silent endpoint; it does not validate producer IPC, AI conversion,
+calling-app selection, or virtual microphone output from transformed speech.
 
 Interface reference: installed SDK `CoreAudio.framework/Headers/AudioServerPlugIn.h`
 and Apple's [virtual-device sample documentation](https://developer.apple.com/documentation/coreaudio/creating-an-audio-server-driver-plug-in).
