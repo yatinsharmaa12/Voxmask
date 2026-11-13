@@ -9,6 +9,8 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <time.h>
+#include "../../../audio/producer_mailbox.hpp"
 
 namespace {
 constexpr AudioObjectID plugin=kAudioObjectPlugInObject, device=2, stream=3;
@@ -19,6 +21,7 @@ AudioServerPlugInDriverInterface interface{};
 AudioServerPlugInDriverInterface *interfacePointer=&interface;
 const AudioServerPlugInDriverRef driver=&interfacePointer;
 std::atomic<UInt32> references{1},running{0};
+voxmask::ProducerMailbox producerMailbox;
 static_assert(std::atomic<UInt32>::is_always_lock_free,"lock-free state required");
 AudioServerPlugInHostRef host=nullptr;
 UInt64 anchor=0;
@@ -264,11 +267,19 @@ OSStatus willIO(AudioServerPlugInDriverRef d,AudioObjectID id,UInt32,UInt32 op,B
 OSStatus boundaryIO(AudioServerPlugInDriverRef d,AudioObjectID id,UInt32,UInt32,UInt32,const AudioServerPlugInIOCycleInfo *){
     return d==driver && id==device?noErr:kAudioHardwareBadObjectError;
 }
-OSStatus doIO(AudioServerPlugInDriverRef d,AudioObjectID id,AudioObjectID sid,UInt32,UInt32 op,UInt32 frames,const AudioServerPlugInIOCycleInfo *,void *main,void *){
+OSStatus doIO(AudioServerPlugInDriverRef d,AudioObjectID id,AudioObjectID sid,UInt32,UInt32 op,UInt32 frames,const AudioServerPlugInIOCycleInfo *cycle,void *main,void *){
     if(d!=driver || id!=device || sid!=stream)return kAudioHardwareBadObjectError;
     if(op!=kAudioServerPlugInIOOperationReadInput)return kAudioHardwareUnsupportedOperationError;
     if(frames>maxIOFrames || (frames && !main))return kAudioHardwareIllegalOperationError;
-    if(frames)std::memset(main,0,size_t(frames)*sizeof(Float32));
+    if(frames){
+        const auto validTime=cycle && (cycle->mInputTime.mFlags & kAudioTimeStampSampleTimeValid) &&
+            std::isfinite(cycle->mInputTime.mSampleTime) && cycle->mInputTime.mSampleTime>=0 &&
+            cycle->mInputTime.mSampleTime < static_cast<double>(UINT64_MAX-maxIOFrames);
+        if(validTime){
+            const auto frame=static_cast<uint64_t>(cycle->mInputTime.mSampleTime);
+            producerMailbox.read(frame,frames,clock_gettime_nsec_np(CLOCK_MONOTONIC),static_cast<float *>(main));
+        }else std::memset(main,0,size_t(frames)*sizeof(Float32));
+    }
     return noErr;
 }
 struct BindInterface {
@@ -283,3 +294,15 @@ struct BindInterface {
 extern "C" __attribute__((visibility("default"))) void *VoxMaskFactory(CFAllocatorRef,CFUUIDRef type){
     return type && CFEqual(type,kAudioServerPlugInTypeUUID)?driver:nullptr;
 }
+
+#ifdef VOXMASK_HAL_TESTING
+// Only present in the isolated test bundle. Production audio requires an
+// authenticated transport worker; no injection symbol ships in the driver.
+extern "C" __attribute__((visibility("default"))) void VoxMaskTestPublish(
+    const voxmask::ProducerBlock *block,uint64_t output_frame){
+    if(block)producerMailbox.publish(*block,output_frame,clock_gettime_nsec_np(CLOCK_MONOTONIC));
+}
+extern "C" __attribute__((visibility("default"))) void VoxMaskTestClose(uint64_t epoch){
+    producerMailbox.close(epoch);
+}
+#endif

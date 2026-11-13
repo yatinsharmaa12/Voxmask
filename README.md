@@ -130,8 +130,9 @@ and mutes the session; it never falls back to direct microphone output.
 ## macOS virtual microphone prototype (M2)
 
 A separate silent AudioServerPlugIn is now implemented and builds as
-`build/macos/VoxMaskSilent.driver`. It is **not installed**, has no audio producer
-connection and cannot transform speech. Its isolated interface/silence tests pass.
+`build/macos/VoxMaskSilent.driver`. The source bundle has a tested audio mailbox,
+but no authenticated producer connection and cannot transform speech. Its isolated
+interface, silence, and synthetic mailbox tests pass.
 
 ```sh
 bash tools/build-macos-hal.sh
@@ -148,5 +149,6 @@ enumerated it successfully. A three-second system read test observed 281 callbac
 silence; the next M2 task is authenticated producer transport and multi-client
 validation.
 
-The producer validation layer is now implemented and tested. It is not connected
-to the installed HAL yet. See [producer transport contract](docs/native-producer-transport.md).
+The producer validation layer and HAL callback mailbox are implemented and tested.
+The installed HAL remains the earlier silent build. There is still no cross-process
+connection from the desktop application; see [producer transport contract](docs/native-producer-transport.md).

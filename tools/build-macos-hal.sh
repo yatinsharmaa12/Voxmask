@@ -13,4 +13,4 @@ plutil -lint "$bundle/Contents/Info.plist"
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"
 echo "Built development-only bundle: $bundle"
-echo 'Not installed. This bundle produces silence and has no audio producer connection.'
+echo 'Not installed. This bundle has a mailbox read path but no authenticated producer connection.'

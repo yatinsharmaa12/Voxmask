@@ -1,9 +1,9 @@
 # Producer transport contract — M2 follow-up
 
-The installed macOS endpoint is silent and system-visible. This change adds the
-validation layer for the future converted-audio producer. It is deliberately
-separate from the AudioServerPlugIn callback until the cross-process transport
-mechanism is qualified.
+The installed macOS endpoint is silent and system-visible. The source tree now has
+the validation layer and a bounded mailbox read path in the AudioServerPlugIn.
+The installed bundle has not been replaced. Cross-process producer transport is
+still required before any application can send converted audio to the endpoint.
 
 ## Handshake
 
@@ -40,15 +40,20 @@ version changes, and authenticate the peer before accepting PCM.
 `native/audio/producer_protocol.hpp` implements the handshake and block validator.
 `native/tests/producer_protocol_test.cpp` covers bad tokens, repeated handshakes,
 epochs, sequence gaps/duplicates, timestamp age, finite values, format limits and
-close behavior. It does not open a microphone or contact the installed HAL device.
+close behavior. `native/audio/producer_mailbox.hpp` stores up to eight 960-frame
+blocks keyed to HAL output sample positions. Readers fill gaps with silence and
+discard blocks older than 250 ms. Its samples and metadata are atomic so concurrent
+HAL clients and a writer have no C++ data race. The HAL callback neither locks nor
+allocates. A test-only injection symbol proves that two clients receive the same
+synthetic block and that closing an epoch returns silence. The production bundle
+does not export this injection symbol.
 
-The protocol is therefore ready for a transport adapter, not yet a connected
-producer. The next adapter should use a Mach service listed under
+The protocol and callback mailbox are ready for a transport adapter, not yet a
+connected producer. The next adapter should use a Mach service listed under
 `AudioServerPlugIn_MachServices` in the plug-in bundle, authenticate the peer,
-copy validated blocks into a bounded native mailbox, and have `DoIOOperation` read
-only from that mailbox. The adapter must be tested with producer crash, disconnect,
-token mismatch, stale output and simultaneous clients before it can replace the
-current silent read path.
+copy validated 48 kHz blocks into the mailbox with HAL sample-time alignment. The
+adapter must be tested with producer crash, disconnect, token mismatch, stale output
+and simultaneous clients before the silent endpoint can carry transformed audio.
 
 The bundle now declares `local.voxmask.producer` in its Info.plist. Declaration
 alone does not publish a Mach port or authenticate a client. The next implementation

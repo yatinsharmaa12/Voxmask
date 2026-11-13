@@ -14,6 +14,7 @@
 #include <chrono>
 #include <atomic>
 #include <iostream>
+#include "../../../audio/producer_protocol.hpp"
 
 std::atomic<unsigned> notifications{0};
 OSStatus changed(AudioServerPlugInHostRef,AudioObjectID,UInt32,const AudioObjectPropertyAddress *){notifications.fetch_add(1);return noErr;}
@@ -88,6 +89,27 @@ int main(int argc,char **argv){
         }
     };
     std::thread first([&]{silence(10);}),second([&]{silence(20);});first.join();second.join();
+    using Publish=void (*)(const voxmask::ProducerBlock *,uint64_t);
+    using Close=void (*)(uint64_t);
+    auto publish=reinterpret_cast<Publish>(dlsym(bundle,"VoxMaskTestPublish"));
+    auto close=reinterpret_cast<Close>(dlsym(bundle,"VoxMaskTestClose"));
+    assert(publish && close);
+    voxmask::ProducerBlock block{};
+    block.epoch=7;block.frames=8;block.capture_time_ns=clock_gettime_nsec_np(CLOCK_MONOTONIC);
+    for(unsigned i=0;i<block.frames;++i)block.samples[i]=float(i+1)/16;
+    publish(&block,4096);
+    cycle.mInputTime.mFlags=kAudioTimeStampSampleTimeValid;
+    cycle.mInputTime.mSampleTime=4096;
+    for(UInt32 client:{10u,20u}){
+        std::array<float,16> pcm{};
+        assert((*d)->DoIOOperation(d,device,stream,client,kAudioServerPlugInIOOperationReadInput,16,&cycle,pcm.data(),nullptr)==noErr);
+        for(unsigned i=0;i<8;++i)assert(pcm[i]==block.samples[i]);
+        for(unsigned i=8;i<16;++i)assert(pcm[i]==0);
+    }
+    close(block.epoch);
+    std::array<float,16> closed{};closed.fill(1);
+    assert((*d)->DoIOOperation(d,device,stream,10,kAudioServerPlugInIOOperationReadInput,16,&cycle,closed.data(),nullptr)==noErr);
+    for(float sample:closed)assert(sample==0);
     assert((*d)->DoIOOperation(d,device,stream,10,kAudioServerPlugInIOOperationReadInput,1,&cycle,nullptr,nullptr)==kAudioHardwareIllegalOperationError);
     assert((*d)->DoIOOperation(d,device,stream+50,10,kAudioServerPlugInIOOperationReadInput,0,&cycle,nullptr,nullptr)==kAudioHardwareBadObjectError);
     assert((*d)->DoIOOperation(d,device,stream,10,kAudioServerPlugInIOOperationReadInput,0,&cycle,nullptr,nullptr)==noErr);
@@ -103,6 +125,6 @@ int main(int argc,char **argv){
     const long double expected=(s2-s1)*1000000000.0L/48000;
     const long double actual=static_cast<long double>(h2-h1)*tb.numer/tb.denom;
     assert(std::fabs(expected-actual)<1000); // tick rounding tolerance, not latency
-    std::cout<<"HAL mock host: factory, properties, fixed formats, multi-client lifecycle, silence and clock mapping passed\n";
+    std::cout<<"HAL mock host: factory, properties, multi-client mailbox, silence and clock mapping passed\n";
     dlclose(bundle);
 }
