@@ -100,6 +100,8 @@ behavior and real OS multi-client capture remain unverified.
 3. Design an authenticated producer transport that satisfies the audio host's
    sandbox/identity requirements. The SDK documents explicit Mach-service allowlists
    for plug-in IPC; an arbitrary user-process socket is not assumed to work.
+   The protocol validator and bundle service declaration are now in place; the
+   broker/plug-in Mach-port implementation remains.
 4. Add bounded-age/epoch validation and independent producer-loss silence behavior.
 5. Test the transport with synthetic marker audio before any model integration.
 6. Implement distribution signing, installer rollback and supported-OS qualification.

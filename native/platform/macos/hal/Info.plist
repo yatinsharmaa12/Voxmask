@@ -14,4 +14,7 @@
 <key>CFPlugInTypes</key><dict>
 <key>443ABAB8-E7B3-491A-B985-BEB9187030DB</key><array><string>712671F6-5699-46FA-AFF2-B66AEFB11411</string></array>
 </dict>
+<key>AudioServerPlugIn_MachServices</key><array>
+<string>local.voxmask.producer</string>
+</array>
 </dict></plist>

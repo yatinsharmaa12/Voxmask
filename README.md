@@ -147,3 +147,6 @@ enumerated it successfully. A three-second system read test observed 281 callbac
 143,872 zero-valued frames and no invalid buffers. The endpoint still produces only
 silence; the next M2 task is authenticated producer transport and multi-client
 validation.
+
+The producer validation layer is now implemented and tested. It is not connected
+to the installed HAL yet. See [producer transport contract](docs/native-producer-transport.md).
